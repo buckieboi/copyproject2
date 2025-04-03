@@ -74,7 +74,9 @@ Based on the codebase structure and the process scheduler simulation, explore an
 
 Q1: How does the scheduler framework use function pointers to support different scheduling algorithms (FIFO, RR, SPN)? Identify where these algorithms are implemented and how the program switches between them.
 ```
-Answer:
+Answer:The pointer from the scheduler.c from its h file to pick scheduling algorithms. In the line 'if(!strcmp(sched_algorithm, "-fifo"))
+        scheduler->next_process = scheduler_next_process_fifo;'
+This either picks fifo to be picked or the rr algorithm after.
 ```
 
 Q2: Trace the complete lifecycle of a process from creation to termination. Which components and functions are involved at each stage?
