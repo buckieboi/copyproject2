@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "memory_resource": "c",
+        "*.tcc": "c",
+        "scheduler.h": "c",
+        "unistd.h": "c",
+        "proc_ops.h": "c"
+    }
+}
