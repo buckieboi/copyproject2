@@ -74,12 +74,12 @@ Based on the codebase structure and the process scheduler simulation, explore an
 
 Q1: How does the scheduler framework use function pointers to support different scheduling algorithms (FIFO, RR, SPN)? Identify where these algorithms are implemented and how the program switches between them.
 ```
-Answer:The pointer from the scheduler.c from its h file to pick scheduling algorithms. In the line 'if(!strcmp(sched_algorithm, "-fifo"))
-        scheduler->next_process = scheduler_next_process_fifo;'
-This either picks fifo to be picked or the rr algorithm after.
+Answer: 
+The scheduler framework in scheduler.c uses function pointers to switch between scheduling algorithms. In create_scheduler, scheduler->next_process is assigned either scheduler_next_process_fifo or scheduler_next_process_rr from sched_ops.h, based on the input argument (-fifo or -rr).
 ```
 
 Q2: Trace the complete lifecycle of a process from creation to termination. Which components and functions are involved at each stage?
+A process starts in scheduler.c when long_term_scheduler calls scheduler_create_process from sched_ops.h to allocate a PCB and add it to the ready queue with enqueue in queue.h. The short-term scheduler (short_term_scheduler) selects the next process using scheduler->next_process and executes it with scheduler_context_switch. If preempted, it’s requeued using enqueue. When execution completes, scheduler_release_cpu ensures cleanup. Mutexes and semaphores in scheduler.h (cpu_sem, process_sem) synchronize execution.
 ```
 Answer:
 A process in the scheduler follows the lifecycle of Creation → Ready → Running → (Blocked) → Terminated, with each stage managed by specific functions from different header files. The process begins with scheduler_load_data(scheduler) (sched_ops.h), which loads process data from an input source, and scheduler_create_process(scheduler, pid, arrival_time, service_time) (sched_ops.h), which initializes its PCB and adds it to the ready queue using enqueue(queue, process) (queue.h). Once in the ready queue, the scheduler ensures CPU availability with scheduler_wait_for_cpu(scheduler) (sched_ops.h), selects the next process using scheduler_next_process(scheduler) (sched_ops.h), and performs a context switch with scheduler_context_switch(scheduler, process) (sched_ops.h). When execution starts, scheduler_signal_worker(process) (scheduler.h) signals the process to run, while scheduler_wait_for_worker(scheduler) (sched_ops.h) ensures it progresses. If Round Robin (RR) scheduling is used, scheduler_release_cpu(scheduler) (sched_ops.h) handles time slicing and preemption. when completed, scheduler_release_cpu(scheduler) (sched_ops.h) is called again to release the CPU, and scheduler_destroy_sched_queue(scheduler) (sched_ops.h) cleans up allocated memory, marking the process as terminated.
@@ -106,7 +106,6 @@ Context switching is handled by the scheduler_context_switch function in sched_o
 Q6: Find where the time quantum for Round Robin scheduling is defined and how it would be used during process execution. How would you modify the code to make this configurable at runtime?
 ```
 Answer:
-Q6: Find where the time quantum for Round Robin scheduling is defined and how it would be used during process execution. How would you modify the code to make this configurable at runtime?
 The time quantum for Round Robin is defined as a field time_quantum in scheduler.h and is used within the scheduler_next_process_rr function in sched_ops.h to determine how long a process runs before preemption. To make it configurable at runtime, you would modify the command-line argument parsing in the simulation’s main function to accept a time quantum parameter '-q' flag and then assign that value to scheduler->time_quantum during initialization.
 ```
 
