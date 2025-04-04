@@ -1,1 +1,182 @@
-im add this txt for update proof
+// proc_ops.h
+#ifndef PROCESS_OPS_H
+#define PROCESS_OPS_H
+
+#include "process.h"
+
+// The process functions
+void process_enter_ready_queue(Scheduler* scheduler, PCB* process);
+void process_wait_for_cpu(PCB *process);
+void process_release_cpu(PCB *process);
+void process_cleanup(PCB* process);
+
+#endif
+
+
+//process.h 
+#ifndef PROCESS_H
+#define PROCESS_H
+
+#include <pthread.h>
+#include <semaphore.h>
+
+// Forward declarations
+struct PCB;
+struct Scheduler;
+struct ReadyQueue;
+
+// Process states
+typedef enum {
+    PROCESS_NEW,
+    PROCESS_READY,
+    PROCESS_RUNNING,
+    PROCESS_WAITING,
+    PROCESS_TERMINATED
+} ProcessState;
+
+// Process Control Block (PCB)
+typedef struct PCB {
+    int pid;                    // Process ID
+    int arrival_time;           // Time when process should enter system
+    int service_time;           // CPU burst time required
+    int remaining_time;         // Remaining execution time
+    int completion_time;        // Time when process completes
+    int turnaround_time;        // Time in system (completion - arrival)
+    int waiting_time;           // Time spent waiting for CPU
+    
+    ProcessState state;         // Current state of the process
+    pthread_t thread;           // Thread ID of the process
+    sem_t process_sem;          // Semaphore to control process execution
+    
+    // Function pointers for process operations, the names below should be the only ones you use during process execution
+    void (*enter_ready_queue)(struct Scheduler* scheduler, struct PCB* process);    // Function to enter the ready queue for the first time
+    void (*wait_for_cpu)(struct PCB* process);                                      // Function to wait for the scheduler to give CPU
+    void (*release_cpu) (struct PCB* process);                                      // Function to exit the CPU
+    void (*cleanup) (struct PCB* process);                                          // Function to clean up resources
+
+    struct Scheduler* scheduler;    // Pointer to the scheduler
+    struct PCB* next;               // Pointer to next process in queue
+} PCB;
+
+// Function to create a new process
+PCB* create_process(int pid, int arrival_time, int service_time, struct Scheduler *scheduler); 
+
+// Function for the process vCPU
+void* process_execute(void* arg);
+
+#endif // PROCESS_H 
+
+//queue.h 
+
+#ifndef QUEUE_H
+#define QUEUE_H
+
+#include "process.h"
+#include <pthread.h>
+
+// Ready Queue structure
+typedef struct {
+    PCB* head;                  // Head of the linked list
+    PCB* tail;                  // Tail of the linked list
+    int size;                   // Number of processes in queue
+    pthread_mutex_t mutex;      // Mutex for queue access
+} ReadyQueue;
+
+// Queue operations
+void init_queue(ReadyQueue* queue);
+void destroy_queue(ReadyQueue* queue);
+void enqueue(ReadyQueue* queue, PCB* process);
+PCB* dequeue(ReadyQueue* queue);
+PCB* peek(ReadyQueue* queue);
+int is_empty(ReadyQueue* queue);
+
+#endif // QUEUE_H 
+
+//sched_ops.h 
+
+#ifndef SCHEDULER_OPS_H
+#define SCHEDULER_OPS_H
+
+#include "scheduler.h"
+
+// The scheduler functions
+void scheduler_init(Scheduler* scheduler);
+void scheduler_destroy(Scheduler* scheduler);
+int scheduler_load_data(const char* filename, Scheduler* scheduler);
+void scheduler_create_process(Scheduler* scheduler, int pid, int arrival_time, int service_time);
+PCB* scheduler_next_process_fifo(Scheduler* scheduler);
+PCB* scheduler_next_process_rr(Scheduler* scheduler);
+void scheduler_signal_worker(PCB *process);
+void scheduler_context_switch(Scheduler* scheduler, PCB* process);
+void scheduler_wait_for_cpu(Scheduler* scheduler);
+void scheduler_release_cpu(Scheduler* scheduler);
+void scheduler_wait_for_worker(Scheduler* scheduler);
+void scheduler_wait_for_queue(Scheduler* scheduler);
+int scheduler_get_time(Scheduler* scheduler);
+
+#endif // SCHEDULER_OPS_H 
+
+
+// scheduler.h 
+
+#ifndef SCHEDULER_H
+#define SCHEDULER_H
+
+#include "process.h"
+#include "queue.h"
+#include <pthread.h>
+#include <semaphore.h>
+
+// Process data structure for storing arrival and service times
+typedef struct {
+    int arrival_time;
+    int service_time;
+} ProcessData;
+
+// Global scheduler variables
+typedef struct Scheduler {
+    int current_time;             // Global timer
+    pthread_mutex_t timer_mutex;  // Mutex for timer access
+    
+    int cpu_idle;                 // Flag indicating if CPU is idle
+    pthread_mutex_t cpu_mutex;    // Mutex for CPU access
+    sem_t cpu_sem;                // Semaphore for CPU allocation
+    PCB* current_running_process; // Pointer to the currently running process
+    
+    ReadyQueue* ready_queue;       // Queue of ready processes
+    int process_count;            // Total number of processes
+    int completed_count;          // Number of completed processes
+    
+    // Process data storage
+    ProcessData* process_data;    // Array of process data
+    int num_processes_to_create;  // Number of processes to create
+    
+    int is_running;               // Flag to control simulation
+    
+    // Scheduling algorithm parameters
+    int time_quantum;             // For Round Robin
+    
+    // Function pointers for scheduler operations
+    void (*init_sched_queue)(struct Scheduler* scheduler);
+    void (*destroy_sched_queue)(struct Scheduler* scheduler);
+    int (*load_process_data)(const char* filename, struct Scheduler* scheduler);
+    void (*create_process)(struct Scheduler* scheduler, int pid, int arrival_time, int service_time);
+    PCB* (*next_process)(struct Scheduler* scheduler);
+    void (*context_switch)(struct Scheduler* scheduler, struct PCB* process);
+    void (*wait_for_worker)(struct Scheduler* scheduler);
+    void (*signal_worker)(struct PCB* process);
+    void (*wait_for_cpu)(struct Scheduler* scheduler);
+    void (*release_cpu)(struct Scheduler* scheduler);
+    void (*wait_for_queue)(struct Scheduler* scheduler);
+    int (*get_time)(struct Scheduler* scheduler);
+} Scheduler;
+
+// Create and initialize a new scheduler
+Scheduler* create_scheduler(char* sched_algorithm);
+
+// Functions for the scheduler threads
+void* long_term_scheduler(void* arg);
+void* short_term_scheduler(void* arg);
+void* timer_function(void* arg);
+
+#endif // SCHEDULER_H 

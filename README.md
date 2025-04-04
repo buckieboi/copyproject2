@@ -82,46 +82,58 @@ This either picks fifo to be picked or the rr algorithm after.
 Q2: Trace the complete lifecycle of a process from creation to termination. Which components and functions are involved at each stage?
 ```
 Answer:
+A process in the scheduler follows the lifecycle of Creation → Ready → Running → (Blocked) → Terminated, with each stage managed by specific functions from different header files. The process begins with scheduler_load_data(scheduler) (sched_ops.h), which loads process data from an input source, and scheduler_create_process(scheduler, pid, arrival_time, service_time) (sched_ops.h), which initializes its PCB and adds it to the ready queue using enqueue(queue, process) (queue.h). Once in the ready queue, the scheduler ensures CPU availability with scheduler_wait_for_cpu(scheduler) (sched_ops.h), selects the next process using scheduler_next_process(scheduler) (sched_ops.h), and performs a context switch with scheduler_context_switch(scheduler, process) (sched_ops.h). When execution starts, scheduler_signal_worker(process) (scheduler.h) signals the process to run, while scheduler_wait_for_worker(scheduler) (sched_ops.h) ensures it progresses. If Round Robin (RR) scheduling is used, scheduler_release_cpu(scheduler) (sched_ops.h) handles time slicing and preemption. when completed, scheduler_release_cpu(scheduler) (sched_ops.h) is called again to release the CPU, and scheduler_destroy_sched_queue(scheduler) (sched_ops.h) cleans up allocated memory, marking the process as terminated.
 ```
 
 Q3: Identify all the mutex locks and semaphores used in the codebase. For each one, explain its purpose and how it prevents race conditions or deadlocks.
 ```
 Answer:
+The codebase uses mutex locks and semaphores to prevent race conditions and ensure safe access to shared resources. timer_mutex (scheduler.h) protects current_time updates, while cpu_mutex (scheduler.h) secures current_running_process to prevent simultaneous modifications. The queue mutex (queue.h) ensures thread-safe enqueue/dequeue operations. cpu_sem (scheduler.h) controls CPU access, preventing multiple processes from running simultaneously. process_sem (process.h) manages individual process execution, ensuring they wait for scheduling signals. These synchronization mechanisms enforce mutual exclusion and orderly execution, preventing race conditions and deadlocks.
 ```
 
 Q4: Analyze the implementation of the ready queue. How does it differ for different scheduling algorithms, particularly when comparing FIFO to SPN? How would you implement the SPN algorithm? 
 ```
 Answer:
+The ready queue (defined in queue.h) is implemented as a simple linked list, where processes are enqueued at the tail and dequeued from the head which is great for FIFO scheduling. For SPN, rather than using insertion order, you’d need to modify the enqueue operation to insert processes based on their service time, so that the process with the shortest service time is always at the front of the queue. This can be done by implementing a priority queue or by sorting the queue upon insertion, and that the scheduler’s next_process function (from sched_ops.h) always selects the process with the shortest remaining service time.
 ```
 
 Q5: How is context switching implemented in the simulation? What steps are taken when switching from one process to another?
 ```
 Answer:
+Context switching is handled by the scheduler_context_switch function in sched_ops.h. When switching, the current process’s state (including remaining execution time) is saved, and the CPU is assigned to the next selected process from the ready queue. The scheduler updates the current_running_process in scheduler.h, and the switch is signaled using scheduler_signal_worker so that the newly scheduled process can start execution while the previous one is either preempted (in RR) or terminated.
 ```
 
 Q6: Find where the time quantum for Round Robin scheduling is defined and how it would be used during process execution. How would you modify the code to make this configurable at runtime?
 ```
 Answer:
+Q6: Find where the time quantum for Round Robin scheduling is defined and how it would be used during process execution. How would you modify the code to make this configurable at runtime?
+The time quantum for Round Robin is defined as a field time_quantum in scheduler.h and is used within the scheduler_next_process_rr function in sched_ops.h to determine how long a process runs before preemption. To make it configurable at runtime, you would modify the command-line argument parsing in the simulation’s main function to accept a time quantum parameter '-q' flag and then assign that value to scheduler->time_quantum during initialization.
 ```
 
 Q7: Explain how turnaround time and waiting time are calculated.
 ```
 Answer:
+Turnaround time is calculated by subtracting the process’s arrival time from its completion time, while waiting time is determined by subtracting the process’s actual service time from its turnaround time. These calculations are updated within the process’s execution functions (process.h/process.c).
 ```
 
 Q8: How do the long-term and short-term scheduler threads interact? What mechanisms ensure they don't interfere with each other?
 ```
 Answer:
+The long-term scheduler (implemented in scheduler.h/sched_ops.h) is responsible for reading process data and creating processes at their specified arrival times, while the short-term scheduler continuously selects processes from the ready queue for execution. They interact through shared structures like the ready queue and global timer. Mutexes (e.g., cpu_mutex and timer_mutex in scheduler.h) and semaphores (e.g., cpu_sem) are used to synchronize access to these shared resources, this allows that the two scheduler threads do not interfere with one another.
+
 ```
 
 Q9: Identify instances of error handling in the codebase. How could the error handling be improved to make the simulation more robust?
 ```
 Answer:
+Error handling is present in functions like create_scheduler in scheduler.c, which checks for memory allocation failures using perror. Other functions also check for resource initialization errors. To improve robustness, the code could include more detailed error messages, consistent return status checking across all functions (especially for semaphore and mutex operations in scheduler.h and queue.h), and a centralized error logging mechanism to capture and possibly recover from non-critical failures.
 ```
 
 Q10: How might the current implementation perform with hundreds or thousands of processes? Suggest modifications to improve scalability.
 ```
 Answer:
+With a large number of processes, performance might degrade due to the overhead of managing many threads and linear-time operations on the ready queue. To improve scalability, you could use a thread pool instead of creating a new thread per process, implement a more efficient data structure (such as a heap-based priority queue).
+
 ```
 
 # Current Status
